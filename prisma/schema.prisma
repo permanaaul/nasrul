@@ -1,0 +1,17 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Budget {
+  id         Int     @id @default(autoincrement())
+  provinsi   String  @db.VarChar(255)
+  kabupaten  String  @db.VarChar(255)
+  opd        String  @db.VarChar(255)
+  anggaran   Int
+  realisasi  Int
+}

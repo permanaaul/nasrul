@@ -1,101 +1,267 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import { Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import axios from 'axios';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  flexRender,
+} from '@tanstack/react-table';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
+interface Budget {
+  id: number;
+  provinsi: string;
+  kabupaten: string;
+  opd: string;
+  anggaran: number;
+  realisasi: number;
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [formData, setFormData] = useState({
+    provinsi: '',
+    kabupaten: '',
+    opd: '',
+    anggaran: '',
+    realisasi: '',
+  });
+  const [globalFilter, setGlobalFilter] = useState('');
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    const fetchBudgets = async () => {
+      try {
+        const res = await axios.get('/api/budget');
+        setBudgets(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchBudgets();
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+
+    if (name === 'anggaran' || name === 'realisasi') {
+      const formattedValue = Number(value.replace(/[^0-9]/g, '')).toLocaleString('id-ID');
+      setFormData({
+        ...formData,
+        [name]: formattedValue,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value,
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    try {
+      const res = await axios.post('/api/budget', {
+        ...formData,
+        anggaran: formData.anggaran.replace(/\./g, ''),
+        realisasi: formData.realisasi.replace(/\./g, ''),
+      });
+
+      if (res.status === 200) {
+        const newBudget = res.data;
+        setBudgets([...budgets, newBudget]);
+        setFormData({
+          provinsi: '',
+          kabupaten: '',
+          opd: '',
+          anggaran: '',
+          realisasi: '',
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const columns = useMemo(
+    () => [
+      { accessorKey: 'provinsi', header: 'Provinsi' },
+      { accessorKey: 'kabupaten', header: 'Kabupaten/Kota' },
+      { accessorKey: 'opd', header: 'OPD' },
+      {
+        accessorKey: 'anggaran',
+        header: 'Anggaran (Rupiah)',
+        cell: ({ getValue }: any) => `Rp ${Number(getValue()).toLocaleString('id-ID')}`,
+      },
+      {
+        accessorKey: 'realisasi',
+        header: 'Realisasi (Rupiah)',
+        cell: ({ getValue }: any) => `Rp ${Number(getValue()).toLocaleString('id-ID')}`,
+      },
+    ],
+    []
+  );
+
+  const data = useMemo(() => budgets, [budgets]);
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: {
+      globalFilter,
+    },
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onGlobalFilterChange: setGlobalFilter,
+  });
+
+  // Data untuk grafik
+  const dataChart = {
+    labels: budgets.map((row) => `${row.kabupaten} (${row.opd})`),
+    datasets: [
+      {
+        label: 'Anggaran (Rupiah)',
+        data: budgets.map((row) => row.anggaran),
+        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+      },
+      {
+        label: 'Realisasi (Rupiah)',
+        data: budgets.map((row) => row.realisasi),
+        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+      },
+    ],
+  };
+
+  return (
+    <div className="container mx-auto p-8">
+      <h1 className="text-2xl font-bold mb-8">
+        Fokus Pemda: Total Anggaran/Realisasi
+      </h1>
+
+      {/* Form untuk input data baru */}
+      <form onSubmit={handleSubmit} className="mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <input
+            name="provinsi"
+            value={formData.provinsi}
+            onChange={handleInputChange}
+            placeholder="Provinsi"
+            className="border p-2"
+            required
+          />
+          <input
+            name="kabupaten"
+            value={formData.kabupaten}
+            onChange={handleInputChange}
+            placeholder="Kabupaten"
+            className="border p-2"
+            required
+          />
+          <input
+            name="opd"
+            value={formData.opd}
+            onChange={handleInputChange}
+            placeholder="OPD"
+            className="border p-2"
+            required
+          />
+          <input
+            name="anggaran"
+            value={formData.anggaran}
+            onChange={handleInputChange}
+            placeholder="Anggaran (Rupiah)"
+            className="border p-2"
+            required
+          />
+          <input
+            name="realisasi"
+            value={formData.realisasi}
+            onChange={handleInputChange}
+            placeholder="Realisasi (Rupiah)"
+            className="border p-2"
+            required
+          />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+          Tambah Data
+        </button>
+      </form>
+
+      {/* Search Box */}
+      <div className="mb-4">
+        <input
+          type="text"
+          value={globalFilter ?? ''}
+          onChange={(e) => setGlobalFilter(e.target.value)}
+          placeholder="Cari berdasarkan Provinsi/Kabupaten/Kota"
+          className="border p-2 w-full"
+        />
+      </div>
+
+      {/* Tabel Anggaran dan Realisasi */}
+      <table className="table-auto w-full text-left border-collapse border border-gray-400 mb-8">
+        <thead>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr key={headerGroup.id} className="bg-gray-200">
+              {headerGroup.headers.map((header) => (
+                <th
+                  key={header.id}
+                  onClick={header.column.getToggleSortingHandler()}
+                  className="border border-gray-400 px-4 py-2"
+                >
+                  {header.isPlaceholder
+                    ? null
+                    : flexRender(
+                        header.column.columnDef.header,
+                        header.getContext()
+                      )}
+                  {header.column.getIsSorted() ? (
+                    header.column.getIsSorted() === 'desc' ? ' 🔽' : ' 🔼'
+                  ) : null}
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map((row) => (
+            <tr key={row.id} className="odd:bg-white even:bg-gray-100">
+              {row.getVisibleCells().map((cell) => (
+                <td key={cell.id} className="border border-gray-400 px-4 py-2">
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Grafik Anggaran vs Realisasi */}
+      <div className="w-full max-w-4xl mx-auto mb-8">
+        <Bar
+          data={dataChart}
+          options={{
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'top',
+              },
+              title: {
+                display: true,
+                text: 'Perbandingan Anggaran dan Realisasi per Kabupaten/OPD',
+              },
+            },
+          }}
+        />
+      </div>
     </div>
   );
 }
