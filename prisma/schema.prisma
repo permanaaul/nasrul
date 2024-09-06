@@ -14,4 +14,23 @@ model Budget {
   opd        String  @db.VarChar(255)
   anggaran   Int
   realisasi  Int
+  aksiKonvergensi AksiKonvergensi[]
+  ketersediaan Ketersediaan[]
+}
+
+model AksiKonvergensi {
+  id             Int     @id @default(autoincrement())
+  budgetId       Int     // Menghubungkan ke Budget
+  aksi           String  @db.VarChar(255)
+  hasilPengawasan String? @db.VarChar(255)
+  budget         Budget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+}
+
+model Ketersediaan {
+  id         Int     @id @default(autoincrement())
+  budgetId   Int     // Menghubungkan ke Budget
+  jenis      String  @db.VarChar(255) // Jenis ketersediaan seperti "Bidan", "USG", "Antropometri", dll.
+  kebutuhan  Int     // Jumlah kebutuhan
+  tersedia   Int     // Jumlah yang tersedia
+  budget     Budget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
 }
