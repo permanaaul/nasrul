@@ -10,7 +10,7 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
   flexRender,
-  getPaginationRowModel,  // Import pagination row model
+  getPaginationRowModel,
 } from '@tanstack/react-table';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -41,13 +41,23 @@ interface Ketersediaan {
   budget: Budget; // Relasi ke budget
 }
 
+interface SPI {
+  id: number;
+  unsurSpi: string;
+  hasilPengawasan: string;
+}
+
 export default function Home() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [aksiKonvergensi, setAksiKonvergensi] = useState<AksiKonvergensi[]>([]);
   const [ketersediaan, setKetersediaan] = useState<Ketersediaan[]>([]);
+  const [spi, setSpi] = useState<SPI[]>([]);
   const [globalFilter, setGlobalFilter] = useState('');
   const [globalFilterAksi, setGlobalFilterAksi] = useState('');
   const [globalFilterKetersediaan, setGlobalFilterKetersediaan] = useState('');
+  const [globalFilterSpi, setGlobalFilterSpi] = useState('');
+  
+  // Form input state management
   const [formBudget, setFormBudget] = useState({
     provinsi: '',
     kabupaten: '',
@@ -66,23 +76,31 @@ export default function Home() {
     kebutuhan: '',
     tersedia: '',
   });
+  const [formSPI, setFormSPI] = useState({
+    unsurSpi: '',
+    hasilPengawasan: '',
+  });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [budgetsRes, aksiRes, ketersediaanRes] = await Promise.all([
+        const [budgetsRes, aksiRes, ketersediaanRes, spiRes] = await Promise.all([
           axios.get('/api/budget'),
           axios.get('/api/aksiKonvergensi'),
           axios.get('/api/ketersediaan'),
+          axios.get('/api/spi'),
         ]);
         setBudgets(budgetsRes.data);
         setAksiKonvergensi(aksiRes.data);
-        // Properly associate the related `budget` for each `ketersediaan`
+
         const updatedKetersediaan = ketersediaanRes.data.map((item: Ketersediaan) => {
           const budget = budgetsRes.data.find((budget: Budget) => budget.id === item.budgetId);
           return { ...item, budget };
         });
         setKetersediaan(updatedKetersediaan);
+
+        console.log("SPI data: ", spiRes.data);  // Log untuk melihat data SPI
+        setSpi(spiRes.data);
       } catch (err) {
         console.error(err);
         alert('Terjadi kesalahan saat memuat data, silakan coba lagi.');
@@ -92,21 +110,25 @@ export default function Home() {
     fetchData();
   }, []);
 
-  // Form input handling
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>, formType: 'budget' | 'aksi' | 'ketersediaan') => {
+
+
+  // Form input handler
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>, formType: 'budget' | 'aksi' | 'ketersediaan' | 'spi') => {
     const { name, value } = e.target;
 
     if (formType === 'budget') {
       setFormBudget({ ...formBudget, [name]: value });
     } else if (formType === 'aksi') {
       setFormAksi({ ...formAksi, [name]: value });
+    } else if (formType === 'spi') {
+      setFormSPI({ ...formSPI, [name]: value });
     } else {
       setFormKetersediaan({ ...formKetersediaan, [name]: value });
     }
   };
 
-  // Submit handling
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>, formType: 'budget' | 'aksi' | 'ketersediaan') => {
+  // Form submit handler
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>, formType: 'budget' | 'aksi' | 'ketersediaan' | 'spi') => {
     e.preventDefault();
   
     try {
@@ -117,6 +139,9 @@ export default function Home() {
         const data = { ...formAksi, budgetId: parseInt(formAksi.budgetId) };
         await axios.post('/api/aksiKonvergensi', data);
         setFormAksi({ budgetId: '', aksi: '', hasilPengawasan: '' });
+      } else if (formType === 'spi') {
+        await axios.post('/api/spi', formSPI);
+        setFormSPI({ unsurSpi: '', hasilPengawasan: '' });
       } else {
         const data = { 
           ...formKetersediaan, 
@@ -129,6 +154,19 @@ export default function Home() {
       }
     } catch (err) {
       console.error('Terjadi kesalahan saat mengirim data:', err);
+    }
+  };
+
+  // Form delete handler
+  const handleDelete = async (formType: 'budget' | 'aksi' | 'ketersediaan' | 'spi', id: number) => {
+    try {
+      await axios.delete(`/api/${formType}/${id}`);
+      if (formType === 'budget') setBudgets(budgets.filter((item) => item.id !== id));
+      if (formType === 'aksi') setAksiKonvergensi(aksiKonvergensi.filter((item) => item.id !== id));
+      if (formType === 'ketersediaan') setKetersediaan(ketersediaan.filter((item) => item.id !== id));
+      if (formType === 'spi') setSpi(spi.filter((item) => item.id !== id));
+    } catch (err) {
+      console.error(`Terjadi kesalahan saat menghapus data: ${err}`);
     }
   };
 
@@ -147,8 +185,13 @@ export default function Home() {
         header: 'Realisasi (Rupiah)',
         cell: ({ getValue }: any) => `Rp ${Number(getValue()).toLocaleString('id-ID')}`,
       },
+      {
+        accessorKey: 'deleteAction',
+        header: 'Aksi',
+        cell: ({ row }: any) => <button onClick={() => handleDelete('budget', row.original.id)}>Hapus</button>,
+      },
     ],
-    []
+    [budgets]
   );
 
   const data = useMemo(() => budgets, [budgets]);
@@ -162,32 +205,12 @@ export default function Home() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(), // Menambahkan pagination model
+    getPaginationRowModel: getPaginationRowModel(), 
     onGlobalFilterChange: setGlobalFilter,
-    pageCount: 10, // Menetapkan 10 data per halaman
+    pageCount: 10, 
   });
 
-  // Data untuk grafik anggaran vs realisasi
-  const dataChart = useMemo(
-    () => ({
-      labels: budgets.map((row) => `${row.kabupaten} (${row.opd})`),
-      datasets: [
-        {
-          label: 'Anggaran (Rupiah)',
-          data: budgets.map((row) => row.anggaran),
-          backgroundColor: 'rgba(54, 162, 235, 0.5)',
-        },
-        {
-          label: 'Realisasi (Rupiah)',
-          data: budgets.map((row) => row.realisasi),
-          backgroundColor: 'rgba(75, 192, 192, 0.5)',
-        },
-      ],
-    }),
-    [budgets]
-  );
-
-  // Tabel Aksi Konvergensi
+  // Table for Aksi Konvergensi
   const aksiKonvergensiColumns = useMemo(
     () => [
       { accessorKey: 'budget.provinsi', header: 'Provinsi' },
@@ -195,8 +218,13 @@ export default function Home() {
       { accessorKey: 'budget.opd', header: 'OPD' },
       { accessorKey: 'aksi', header: 'Aksi Konvergensi' },
       { accessorKey: 'hasilPengawasan', header: 'Hasil Pengawasan' },
+      {
+        accessorKey: 'deleteAction',
+        header: 'Aksi',
+        cell: ({ row }: any) => <button onClick={() => handleDelete('aksi', row.original.id)}>Hapus</button>,
+      },
     ],
-    []
+    [aksiKonvergensi]
   );
 
   const aksiKonvergensiData = useMemo(() => aksiKonvergensi, [aksiKonvergensi]);
@@ -210,12 +238,14 @@ export default function Home() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(), // Menambahkan pagination model
+    getPaginationRowModel: getPaginationRowModel(), 
     onGlobalFilterChange: setGlobalFilterAksi,
-    pageCount: 10, // Menetapkan 10 data per halaman
+    pageCount: 10, 
   });
 
-  // Tabel Ketersediaan
+  
+
+  // Table for Ketersediaan
   const ketersediaanColumns = useMemo(
     () => [
       { accessorKey: 'budget.provinsi', header: 'Provinsi' },
@@ -223,8 +253,13 @@ export default function Home() {
       { accessorKey: 'jenis', header: 'Ketersediaan' },
       { accessorKey: 'kebutuhan', header: 'Kebutuhan' },
       { accessorKey: 'tersedia', header: 'Tersedia' },
+      {
+        accessorKey: 'deleteAction',
+        header: 'Aksi',
+        cell: ({ row }: any) => <button onClick={() => handleDelete('ketersediaan', row.original.id)}>Hapus</button>,
+      },
     ],
-    []
+    [ketersediaan]
   );
 
   const ketersediaanData = useMemo(() => ketersediaan, [ketersediaan]);
@@ -238,10 +273,112 @@ export default function Home() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(), // Menambahkan pagination model
+    getPaginationRowModel: getPaginationRowModel(), 
     onGlobalFilterChange: setGlobalFilterKetersediaan,
-    pageCount: 10, // Menetapkan 10 data per halaman
+    pageCount: 10, 
   });
+
+  // Tabel SPI columns
+  const spiColumns = useMemo(
+    () => [
+      { accessorKey: 'unsur', header: 'Unsur SPI' },  // Ubah accessorKey menjadi 'unsur'
+      { accessorKey: 'hasilPengawasan', header: 'Hasil Pengawasan' },
+      {
+        accessorKey: 'deleteAction',
+        header: 'Aksi',
+        cell: ({ row }: any) => <button onClick={() => handleDelete('spi', row.original.id)}>Hapus</button>,
+      },
+    ],
+    [spi]
+  );
+  
+  
+
+// Gunakan data SPI
+const spiData = useMemo(() => spi, [spi]);
+
+const spiTable = useReactTable({
+  data: spiData,
+  columns: spiColumns,
+  state: {
+    globalFilter: globalFilterSpi,
+  },
+  getCoreRowModel: getCoreRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  onGlobalFilterChange: setGlobalFilterSpi,
+  pageCount: 10,
+});
+
+
+  // Data for Anggaran and Realisasi Chart
+  const anggaranData = useMemo(() => {
+    return {
+      labels: budgets.map((budget) => `${budget.provinsi} - ${budget.kabupaten}`),
+      datasets: [
+        {
+          label: 'Anggaran',
+          data: budgets.map((budget) => budget.anggaran),
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+        },
+        {
+          label: 'Realisasi',
+          data: budgets.map((budget) => budget.realisasi),
+          backgroundColor: 'rgba(255, 99, 132, 0.2)',
+          borderColor: 'rgba(255, 99, 132, 1)',
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [budgets]);
+
+  // Data for Aksi Konvergensi Chart
+const aksiKonvergensiChartData = useMemo(() => {
+  // Group data by Provinsi-Kabupaten/Kota
+  const dataByRegion = aksiKonvergensi.reduce((acc: any, curr: AksiKonvergensi) => {
+    const regionKey = `${curr.budget?.provinsi ?? 'Unknown'} - ${curr.budget?.kabupaten ?? 'Unknown'}`;
+
+    if (!acc[regionKey]) {
+      acc[regionKey] = {};
+    }
+
+    // Map each Aksi and its corresponding hasilPengawasan to the region
+    acc[regionKey][curr.aksi] = curr.hasilPengawasan;
+
+    return acc;
+  }, {});
+
+  // Extract labels (Provinsi - Kabupaten/Kota) for X-axis
+  const labels = Object.keys(dataByRegion);
+
+  // Prepare datasets for each Aksi Konvergensi
+  const aksiNames = [
+    'AKSI 1: Analisa Situasi Stunting',
+    'AKSI 2: Rencana Kegiatan',
+    'AKSI 3: Rembug Stunting',
+    'AKSI 4: Regulasi terkait Stunting',
+    'AKSI 5: Pembinaan Unsur Pelaku',
+    'AKSI 6: Sistem Manajemen Data',
+    'AKSI 7: Data Cakupan Sasaran dan Publikasi Data',
+    'AKSI 8: Review Kerja'
+  ];
+
+  const datasets = aksiNames.map((aksiName, index) => ({
+    label: aksiName, // Nama Aksi sebagai label untuk setiap dataset
+    data: labels.map((label) => dataByRegion[label][aksiName] || 0), // Plot hasilPengawasan untuk setiap Provinsi-Kabupaten/Kota
+    backgroundColor: `rgba(${(index + 1) * 30}, 162, 235, 0.2)`, // Warna batang
+    borderColor: `rgba(${(index + 1) * 30}, 162, 235, 1)`, // Warna garis batang
+    borderWidth: 1,
+  }));
+
+  return {
+    labels, // Provinsi - Kabupaten/Kota sebagai X-axis
+    datasets, // Batang yang menampilkan hasil pengawasan untuk setiap Aksi Konvergensi
+  };
+}, [aksiKonvergensi]);
 
   return (
     <div className="container mx-auto p-8">
@@ -299,6 +436,145 @@ export default function Home() {
         </button>
       </form>
 
+      {/* Form Input Aksi Konvergensi */}
+<h2 className="text-xl font-bold mb-4">Tambah Aksi Konvergensi</h2>
+<form onSubmit={(e) => handleSubmit(e, 'aksi')} className="mb-8">
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+    
+    {/* Dropdown for selecting the budget */}
+    <select
+      name="budgetId"
+      value={formAksi.budgetId}
+      onChange={(e) => handleInputChange(e, 'aksi')}
+      className="border p-2"
+      required
+    >
+      <option value="">Pilih Provinsi dan Kabupaten/Kota</option>
+      {budgets.map((budget) => (
+        <option key={budget.id} value={budget.id}>
+          {budget.provinsi} - {budget.kabupaten} - {budget.opd}
+        </option>
+      ))}
+    </select>
+
+    {/* Dropdown for selecting the Aksi Konvergensi */}
+    <select
+      name="aksi"
+      value={formAksi.aksi}
+      onChange={(e) => handleInputChange(e, 'aksi')}
+      className="border p-2"
+      required
+    >
+      <option value="">Pilih Aksi Konvergensi</option>
+      <option value="AKSI 1: Analisa Situasi Stunting">AKSI 1: Analisa Situasi Stunting</option>
+      <option value="AKSI 2: Rencana Kegiatan">AKSI 2: Rencana Kegiatan</option>
+      <option value="AKSI 3: Rembug Stunting">AKSI 3: Rembug Stunting</option>
+      <option value="AKSI 4: Regulasi terkait Stunting">AKSI 4: Regulasi terkait Stunting</option>
+      <option value="AKSI 5: Pembinaan Unsur Pelaku">AKSI 5: Pembinaan Unsur Pelaku</option>
+      <option value="AKSI 6: Sistem Manajemen Data">AKSI 6: Sistem Manajemen Data</option>
+      <option value="AKSI 7: Data Cakupan Sasaran dan Publikasi Data">AKSI 7: Data Cakupan Sasaran dan Publikasi Data</option>
+      <option value="AKSI 8: Review Kerja">AKSI 8: Review Kerja</option>
+    </select>
+
+    {/* Input for Hasil Pengawasan as an integer */}
+    <input
+      name="hasilPengawasan"
+      type="number"
+      value={formAksi.hasilPengawasan}
+      onChange={(e) => handleInputChange(e, 'aksi')}
+      placeholder="Hasil Pengawasan (nilai poin)"
+      className="border p-2"
+      required
+    />
+  </div>
+
+  {/* Submit Button */}
+  <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+    Tambah Aksi Konvergensi
+  </button>
+</form>
+
+
+      {/* Form Input Ketersediaan */}
+      <h2 className="text-xl font-bold mb-4">Tambah Ketersediaan</h2>
+      <form onSubmit={(e) => handleSubmit(e, 'ketersediaan')} className="mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <select
+            name="budgetId"
+            value={formKetersediaan.budgetId}
+            onChange={(e) => handleInputChange(e, 'ketersediaan')}
+            className="border p-2"
+            required
+          >
+            <option value="">Pilih Budget</option>
+            {budgets.map((budget) => (
+              <option key={budget.id} value={budget.id}>
+                {budget.provinsi} - {budget.kabupaten} - {budget.opd}
+              </option>
+            ))}
+          </select>
+          <input
+            name="jenis"
+            value={formKetersediaan.jenis}
+            onChange={(e) => handleInputChange(e, 'ketersediaan')}
+            placeholder="Jenis Ketersediaan"
+            className="border p-2"
+            required
+          />
+          <input
+            name="kebutuhan"
+            value={formKetersediaan.kebutuhan}
+            onChange={(e) => handleInputChange(e, 'ketersediaan')}
+            placeholder="Kebutuhan"
+            className="border p-2"
+            required
+          />
+          <input
+            name="tersedia"
+            value={formKetersediaan.tersedia}
+            onChange={(e) => handleInputChange(e, 'ketersediaan')}
+            placeholder="Tersedia"
+            className="border p-2"
+            required
+          />
+        </div>
+        <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+          Tambah Ketersediaan
+        </button>
+      </form>
+
+      {/* Form SPI */}
+<h2 className="text-xl font-bold mb-4">Tambah SPI</h2>
+<form onSubmit={(e) => handleSubmit(e, 'spi')} className="mb-8">
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+    <select
+      name="unsurSpi"
+      value={formSPI.unsurSpi}
+      onChange={(e) => handleInputChange(e, 'spi')}
+      className="border p-2"
+      required
+    >
+      <option value="Lingkungan Pengendalian">Lingkungan Pengendalian</option>
+      <option value="Penilaian Risiko">Penilaian Risiko</option>
+      <option value="Kegiatan Pengendalian">Kegiatan Pengendalian</option>
+      <option value="Informasi dan Komunikasi">Informasi dan Komunikasi</option>
+      <option value="Pemantauan">Pemantauan</option>
+    </select>
+    <input
+      name="hasilPengawasan"
+      value={formSPI.hasilPengawasan}
+      onChange={(e) => handleInputChange(e, 'spi')}
+      placeholder="Hasil Pengawasan"
+      className="border p-2"
+      required
+    />
+  </div>
+  <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+    Tambah SPI
+  </button>
+</form>
+
+<h2 className="text-xl font-bold mb-4">Tabel Anggaran dan Realisasi</h2>
       {/* Search Box */}
       <div className="mb-4">
         <input
@@ -348,6 +624,10 @@ export default function Home() {
         </tbody>
       </table>
 
+       {/* Anggaran and Realisasi Chart */}
+       <Bar data={anggaranData} options={{ responsive: true }} className="mb-8" />
+      
+
       {/* Pagination Controls for Budget Table */}
       <div className="flex justify-between items-center">
         <button onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
@@ -359,25 +639,6 @@ export default function Home() {
         <button onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
           Next
         </button>
-      </div>
-
-      {/* Grafik Anggaran vs Realisasi */}
-      <div className="w-full max-w-4xl mx-auto mb-8">
-        <Bar
-          data={dataChart}
-          options={{
-            responsive: true,
-            plugins: {
-              legend: {
-                position: 'top',
-              },
-              title: {
-                display: true,
-                text: 'Perbandingan Anggaran dan Realisasi per Kabupaten/OPD',
-              },
-            },
-          }}
-        />
       </div>
 
       {/* Tabel Aksi Konvergensi */}
@@ -430,6 +691,9 @@ export default function Home() {
           ))}
         </tbody>
       </table>
+
+       {/* Aksi Konvergensi Chart */}
+      <Bar data={aksiKonvergensiChartData} options={{ responsive: true }} className="mb-8" />
 
       {/* Pagination Controls for Aksi Konvergensi Table */}
       <div className="flex justify-between items-center">
@@ -504,6 +768,72 @@ export default function Home() {
           Page {ketersediaanTable.getState().pagination.pageIndex + 1} of {ketersediaanTable.getPageCount()}
         </span>
         <button onClick={() => ketersediaanTable.nextPage()} disabled={!ketersediaanTable.getCanNextPage()}>
+          Next
+        </button>
+      </div>
+
+      {/* Tabel SPI */}
+<h2 className="text-xl font-bold mb-4">Tabel SPI</h2>
+
+{/* Search Box SPI */}
+<div className="mb-4">
+  <input
+    type="text"
+    value={globalFilterSpi ?? ''}
+    onChange={(e) => setGlobalFilterSpi(e.target.value)}
+    placeholder="Cari berdasarkan Unsur SPI"
+    className="border p-2 w-full"
+  />
+</div>
+
+<table className="table-auto w-full text-left border-collapse border border-gray-400 mb-8">
+  <thead>
+    {spiTable.getHeaderGroups().map((headerGroup) => (
+      <tr key={headerGroup.id} className="bg-gray-200">
+        {headerGroup.headers.map((header) => (
+          <th
+            key={header.id}
+            onClick={header.column.getToggleSortingHandler()}
+            className="border border-gray-400 px-4 py-2 cursor-pointer"
+          >
+            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+            {header.column.getIsSorted() ? (header.column.getIsSorted() === 'desc' ? ' 🔽' : ' 🔼') : null}
+          </th>
+        ))}
+      </tr>
+    ))}
+  </thead>
+  <tbody>
+    {spiTable.getRowModel().rows.length > 0 ? (
+      spiTable.getRowModel().rows.map((row) => (
+        <tr key={row.id} className="odd:bg-white even:bg-gray-100">
+          {row.getVisibleCells().map((cell) => (
+            <td key={cell.id} className="border border-gray-400 px-4 py-2">
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </td>
+          ))}
+        </tr>
+      ))
+    ) : (
+      <tr>
+        <td colSpan={spiTable.getHeaderGroups()[0].headers.length} className="text-center py-4">
+          Tidak ada data SPI yang ditemukan
+        </td>
+      </tr>
+    )}
+  </tbody>
+</table>
+
+
+      {/* Pagination Controls for SPI Table */}
+      <div className="flex justify-between items-center">
+        <button onClick={() => spiTable.previousPage()} disabled={!spiTable.getCanPreviousPage()}>
+          Previous
+        </button>
+        <span>
+          Page {spiTable.getState().pagination.pageIndex + 1} of {spiTable.getPageCount()}
+        </span>
+        <button onClick={() => spiTable.nextPage()} disabled={!spiTable.getCanNextPage()}>
           Next
         </button>
       </div>

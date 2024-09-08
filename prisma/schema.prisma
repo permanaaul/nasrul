@@ -34,3 +34,9 @@ model Ketersediaan {
   tersedia   Int     // Jumlah yang tersedia
   budget     Budget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
 }
+
+model SPI {
+  id             Int     @id @default(autoincrement())
+  unsur          String  @db.VarChar(255)  // Unsur SPI seperti "Lingkungan Pengendalian", "Penilaian Risiko", dll.
+  hasilPengawasan String? @db.VarChar(255) // Hasil pengawasan dalam bentuk poin atau deskripsi
+}

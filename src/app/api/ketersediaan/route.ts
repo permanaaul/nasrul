@@ -22,3 +22,17 @@ export async function POST(req: Request) {
 
   return NextResponse.json(newKetersediaan);
 }
+
+// DELETE: Menghapus ketersediaan berdasarkan ID
+export async function DELETE(req: Request) {
+  const { id } = await req.json();
+
+  try {
+    const deletedKetersediaan = await prisma.ketersediaan.delete({
+      where: { id: Number(id) },
+    });
+    return NextResponse.json(deletedKetersediaan, { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to delete ketersediaan' }, { status: 500 });
+  }
+}

@@ -33,3 +33,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to add budget' }, { status: 500 });
   }
 }
+
+// DELETE: Menghapus budget berdasarkan ID
+export async function DELETE(req: Request) {
+  const { id } = await req.json();
+
+  try {
+    const deletedBudget = await prisma.budget.delete({
+      where: { id: Number(id) },
+    });
+    return NextResponse.json(deletedBudget, { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to delete budget' }, { status: 500 });
+  }
+}
