@@ -496,52 +496,65 @@ const aksiKonvergensiChartData = useMemo(() => {
 
 
       {/* Form Input Ketersediaan */}
-      <h2 className="text-xl font-bold mb-4">Tambah Ketersediaan</h2>
-      <form onSubmit={(e) => handleSubmit(e, 'ketersediaan')} className="mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-          <select
-            name="budgetId"
-            value={formKetersediaan.budgetId}
-            onChange={(e) => handleInputChange(e, 'ketersediaan')}
-            className="border p-2"
-            required
-          >
-            <option value="">Pilih Budget</option>
-            {budgets.map((budget) => (
-              <option key={budget.id} value={budget.id}>
-                {budget.provinsi} - {budget.kabupaten} - {budget.opd}
-              </option>
-            ))}
-          </select>
-          <input
-            name="jenis"
-            value={formKetersediaan.jenis}
-            onChange={(e) => handleInputChange(e, 'ketersediaan')}
-            placeholder="Jenis Ketersediaan"
-            className="border p-2"
-            required
-          />
-          <input
-            name="kebutuhan"
-            value={formKetersediaan.kebutuhan}
-            onChange={(e) => handleInputChange(e, 'ketersediaan')}
-            placeholder="Kebutuhan"
-            className="border p-2"
-            required
-          />
-          <input
-            name="tersedia"
-            value={formKetersediaan.tersedia}
-            onChange={(e) => handleInputChange(e, 'ketersediaan')}
-            placeholder="Tersedia"
-            className="border p-2"
-            required
-          />
-        </div>
-        <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
-          Tambah Ketersediaan
-        </button>
-      </form>
+<h2 className="text-xl font-bold mb-4">Tambah Ketersediaan</h2>
+<form onSubmit={(e) => handleSubmit(e, 'ketersediaan')} className="mb-8">
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+    {/* Dropdown untuk Budget */}
+    <select
+      name="budgetId"
+      value={formKetersediaan.budgetId}
+      onChange={(e) => handleInputChange(e, 'ketersediaan')}
+      className="border p-2"
+      required
+    >
+      <option value="">Pilih Provinsi dan Kabupaten/Kota</option>
+      {budgets.map((budget) => (
+        <option key={budget.id} value={budget.id}>
+          {budget.provinsi} - {budget.kabupaten} - {budget.opd}
+        </option>
+      ))}
+    </select>
+
+    {/* Dropdown untuk Jenis Ketersediaan */}
+    <select
+      name="jenis"
+      value={formKetersediaan.jenis}
+      onChange={(e) => handleInputChange(e, 'ketersediaan')}
+      className="border p-2"
+      required
+    >
+      <option value="">Pilih Jenis Ketersediaan</option>
+      <option value="Bidan">Bidan</option>
+      <option value="USG">USG</option>
+      <option value="Antropometri">Antropometri</option>
+    </select>
+
+    {/* Input untuk Kebutuhan */}
+    <input
+      name="kebutuhan"
+      value={formKetersediaan.kebutuhan}
+      onChange={(e) => handleInputChange(e, 'ketersediaan')}
+      placeholder="Kebutuhan"
+      className="border p-2"
+      required
+    />
+
+    {/* Input untuk Tersedia */}
+    <input
+      name="tersedia"
+      value={formKetersediaan.tersedia}
+      onChange={(e) => handleInputChange(e, 'ketersediaan')}
+      placeholder="Tersedia"
+      className="border p-2"
+      required
+    />
+  </div>
+
+  {/* Tombol Submit */}
+  <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
+    Tambah Ketersediaan
+  </button>
+</form>
 
       {/* Form SPI */}
 <h2 className="text-xl font-bold mb-4">Tambah SPI</h2>
