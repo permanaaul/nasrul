@@ -16,6 +16,7 @@ model Budget {
   realisasi  Int
   aksiKonvergensi AksiKonvergensi[]
   ketersediaan Ketersediaan[]
+  spi SPI[]
 }
 
 model AksiKonvergensi {
@@ -37,6 +38,8 @@ model Ketersediaan {
 
 model SPI {
   id             Int     @id @default(autoincrement())
+  budgetId       Int     // Foreign Key ke Budget
   unsur          String  @db.VarChar(255)  // Unsur SPI seperti "Lingkungan Pengendalian", "Penilaian Risiko", dll.
   hasilPengawasan String? @db.VarChar(255) // Hasil pengawasan dalam bentuk poin atau deskripsi
+  budget         Budget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
 }

@@ -45,6 +45,7 @@ interface SPI {
   id: number;
   unsurSpi: string;
   hasilPengawasan: string;
+  budget: Budget;
 }
 
 export default function Home() {
@@ -77,6 +78,7 @@ export default function Home() {
     tersedia: '',
   });
   const [formSPI, setFormSPI] = useState({
+    budgetId: '',
     unsurSpi: '',
     hasilPengawasan: '',
   });
@@ -128,34 +130,42 @@ export default function Home() {
   };
 
   // Form submit handler
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>, formType: 'budget' | 'aksi' | 'ketersediaan' | 'spi') => {
-    e.preventDefault();
-  
-    try {
-      if (formType === 'budget') {
-        await axios.post('/api/budget', formBudget);
-        setFormBudget({ provinsi: '', kabupaten: '', opd: '', anggaran: '', realisasi: '' });
-      } else if (formType === 'aksi') {
-        const data = { ...formAksi, budgetId: parseInt(formAksi.budgetId) };
-        await axios.post('/api/aksiKonvergensi', data);
-        setFormAksi({ budgetId: '', aksi: '', hasilPengawasan: '' });
-      } else if (formType === 'spi') {
-        await axios.post('/api/spi', formSPI);
-        setFormSPI({ unsurSpi: '', hasilPengawasan: '' });
-      } else {
-        const data = { 
-          ...formKetersediaan, 
-          budgetId: parseInt(formKetersediaan.budgetId),
-          kebutuhan: parseInt(formKetersediaan.kebutuhan),  
-          tersedia: parseInt(formKetersediaan.tersedia)     
-        };
-        await axios.post('/api/ketersediaan', data);
-        setFormKetersediaan({ budgetId: '', jenis: '', kebutuhan: '', tersedia: '' });
-      }
-    } catch (err) {
-      console.error('Terjadi kesalahan saat mengirim data:', err);
+const handleSubmit = async (e: React.FormEvent<HTMLFormElement>, formType: 'budget' | 'aksi' | 'ketersediaan' | 'spi') => {
+  e.preventDefault();
+
+  try {
+    if (formType === 'budget') {
+      const response = await axios.post('/api/budget', formBudget);
+      const newBudget = response.data;
+      setBudgets([...budgets, newBudget]); // Menambahkan data baru ke state budgets
+      setFormBudget({ provinsi: '', kabupaten: '', opd: '', anggaran: '', realisasi: '' });
+    } else if (formType === 'aksi') {
+      const data = { ...formAksi, budgetId: parseInt(formAksi.budgetId) };
+      const response = await axios.post('/api/aksiKonvergensi', data);
+      const newAksi = response.data;
+      setAksiKonvergensi([...aksiKonvergensi, newAksi]); // Menambahkan data baru ke state aksiKonvergensi
+      setFormAksi({ budgetId: '', aksi: '', hasilPengawasan: '' });
+    } else if (formType === 'spi') {
+      const response = await axios.post('/api/spi', formSPI);
+      const newSPI = response.data;
+      setSpi([...spi, newSPI]); // Menambahkan data baru ke state spi
+      setFormSPI({ budgetId: '', unsurSpi: '', hasilPengawasan: '' });
+    } else {
+      const data = { 
+        ...formKetersediaan, 
+        budgetId: parseInt(formKetersediaan.budgetId),
+        kebutuhan: parseInt(formKetersediaan.kebutuhan),  
+        tersedia: parseInt(formKetersediaan.tersedia)     
+      };
+      const response = await axios.post('/api/ketersediaan', data);
+      const newKetersediaan = response.data;
+      setKetersediaan([...ketersediaan, newKetersediaan]); // Menambahkan data baru ke state ketersediaan
+      setFormKetersediaan({ budgetId: '', jenis: '', kebutuhan: '', tersedia: '' });
     }
-  };
+  } catch (err) {
+    console.error('Terjadi kesalahan saat mengirim data:', err);
+  }
+};
 
   // Form delete handler
   const handleDelete = async (formType: 'budget' | 'aksi' | 'ketersediaan' | 'spi', id: number) => {
@@ -279,20 +289,20 @@ export default function Home() {
   });
 
   // Tabel SPI columns
-  const spiColumns = useMemo(
-    () => [
-      { accessorKey: 'unsur', header: 'Unsur SPI' },  // Ubah accessorKey menjadi 'unsur'
-      { accessorKey: 'hasilPengawasan', header: 'Hasil Pengawasan' },
-      {
-        accessorKey: 'deleteAction',
-        header: 'Aksi',
-        cell: ({ row }: any) => <button onClick={() => handleDelete('spi', row.original.id)}>Hapus</button>,
-      },
-    ],
-    [spi]
-  );
-  
-  
+const spiColumns = useMemo(
+  () => [
+    { accessorKey: 'budget.provinsi', header: 'Provinsi' },  // Akses provinsi dari budget
+    { accessorKey: 'budget.kabupaten', header: 'Kabupaten/Kota' },  // Akses kabupaten dari budget
+    { accessorKey: 'unsur', header: 'Unsur SPI' },  // Pastikan nama ini sesuai dengan properti unsur
+    { accessorKey: 'hasilPengawasan', header: 'Hasil Pengawasan' },
+    {
+      accessorKey: 'deleteAction',
+      header: 'Aksi',
+      cell: ({ row }: any) => <button onClick={() => handleDelete('spi', row.original.id)}>Hapus</button>,
+    },
+  ],
+  [spi]
+);
 
 // Gunakan data SPI
 const spiData = useMemo(() => spi, [spi]);
@@ -312,28 +322,30 @@ const spiTable = useReactTable({
 });
 
 
+
   // Data for Anggaran and Realisasi Chart
-  const anggaranData = useMemo(() => {
-    return {
-      labels: budgets.map((budget) => `${budget.provinsi} - ${budget.kabupaten}`),
-      datasets: [
-        {
-          label: 'Anggaran',
-          data: budgets.map((budget) => budget.anggaran),
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          borderColor: 'rgba(75, 192, 192, 1)',
-          borderWidth: 1,
-        },
-        {
-          label: 'Realisasi',
-          data: budgets.map((budget) => budget.realisasi),
-          backgroundColor: 'rgba(255, 99, 132, 0.2)',
-          borderColor: 'rgba(255, 99, 132, 1)',
-          borderWidth: 1,
-        },
-      ],
-    };
-  }, [budgets]);
+const anggaranData = useMemo(() => {
+  return {
+    labels: budgets.map((budget) => `${budget.provinsi} - ${budget.kabupaten} - ${budget.opd}`), // Tambahkan OPD ke label
+    datasets: [
+      {
+        label: 'Anggaran',
+        data: budgets.map((budget) => budget.anggaran),
+        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1,
+      },
+      {
+        label: 'Realisasi',
+        data: budgets.map((budget) => budget.realisasi),
+        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+        borderColor: 'rgba(255, 99, 132, 1)',
+        borderWidth: 1,
+      },
+    ],
+  };
+}, [budgets]);
+
 
   // Data for Aksi Konvergensi Chart
 const aksiKonvergensiChartData = useMemo(() => {
@@ -379,6 +391,83 @@ const aksiKonvergensiChartData = useMemo(() => {
     datasets, // Batang yang menampilkan hasil pengawasan untuk setiap Aksi Konvergensi
   };
 }, [aksiKonvergensi]);
+
+// Chart for Ketersediaan
+const ketersediaanChart = useMemo(() => {
+  return {
+    labels: ketersediaan.map((item) => {
+      // Periksa apakah budget tersedia sebelum mengakses properti provinsi dan kabupaten
+      const provinsi = item.budget?.provinsi ?? 'Unknown Provinsi';
+      const kabupaten = item.budget?.kabupaten ?? 'Unknown Kabupaten';
+      return `${provinsi} - ${kabupaten} - ${item.jenis}`;
+    }),
+    datasets: [
+      {
+        label: 'Kebutuhan',
+        data: ketersediaan.map((item) => item.kebutuhan),
+        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1,
+      },
+      {
+        label: 'Tersedia',
+        data: ketersediaan.map((item) => item.tersedia),
+        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1,
+      },
+    ],
+  };
+}, [ketersediaan]);
+
+
+// Chart for SPI
+const spiChart = useMemo(() => {
+  return {
+    labels: spi.map((item) => `${item.budget?.provinsi} - ${item.budget?.kabupaten}`), // Menampilkan Provinsi dan Kabupaten/Kota sebagai label X
+    datasets: [
+      {
+        label: 'Hasil Pengawasan per Unsur SPI', // Judul batang
+        data: spi.map((item) => parseInt(item.hasilPengawasan, 10) || 0), // Menggunakan hasil pengawasan sebagai data
+        backgroundColor: spi.map((item) => {
+          switch (item.unsurSpi) { // Pastikan unsur diakses dengan benar
+            case 'Lingkungan Pengendalian':
+              return 'rgba(75, 192, 192, 0.2)';
+            case 'Penilaian Risiko':
+              return 'rgba(255, 99, 132, 0.2)';
+            case 'Kegiatan Pengendalian':
+              return 'rgba(54, 162, 235, 0.2)';
+            case 'Informasi dan Komunikasi':
+              return 'rgba(255, 206, 86, 0.2)';
+            case 'Pemantauan':
+              return 'rgba(153, 102, 255, 0.2)';
+            default:
+              return 'rgba(201, 203, 207, 0.2)'; 
+          }
+        }),
+        borderColor: spi.map((item) => {
+          switch (item.unsurSpi) { 
+            case 'Lingkungan Pengendalian':
+              return 'rgba(75, 192, 192, 1)';
+            case 'Penilaian Risiko':
+              return 'rgba(255, 99, 132, 1)';
+            case 'Kegiatan Pengendalian':
+              return 'rgba(54, 162, 235, 1)';
+            case 'Informasi dan Komunikasi':
+              return 'rgba(255, 206, 86, 1)';
+            case 'Pemantauan':
+              return 'rgba(153, 102, 255, 1)';
+            default:
+              return 'rgba(201, 203, 207, 1)'; // Warna border default jika unsur SPI tidak cocok
+          }
+        }),
+        borderWidth: 1,
+      },
+    ],
+  };
+}, [spi]);
+
+
 
   return (
     <div className="container mx-auto p-8">
@@ -556,10 +645,28 @@ const aksiKonvergensiChartData = useMemo(() => {
   </button>
 </form>
 
-      {/* Form SPI */}
+{/* Form SPI */}
 <h2 className="text-xl font-bold mb-4">Tambah SPI</h2>
 <form onSubmit={(e) => handleSubmit(e, 'spi')} className="mb-8">
   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+    
+    {/* Dropdown for selecting the budget (Provinsi and Kabupaten/Kota) */}
+    <select
+      name="budgetId"
+      value={formSPI.budgetId}
+      onChange={(e) => handleInputChange(e, 'spi')}
+      className="border p-2"
+      required
+    >
+      <option value="">Pilih Provinsi dan Kabupaten/Kota</option>
+      {budgets.map((budget) => (
+        <option key={budget.id} value={budget.id}>
+          {budget.provinsi} - {budget.kabupaten}
+        </option>
+      ))}
+    </select>
+
+    {/* Dropdown for Unsur SPI */}
     <select
       name="unsurSpi"
       value={formSPI.unsurSpi}
@@ -573,19 +680,24 @@ const aksiKonvergensiChartData = useMemo(() => {
       <option value="Informasi dan Komunikasi">Informasi dan Komunikasi</option>
       <option value="Pemantauan">Pemantauan</option>
     </select>
+
+    {/* Input for Hasil Pengawasan */}
     <input
       name="hasilPengawasan"
       value={formSPI.hasilPengawasan}
       onChange={(e) => handleInputChange(e, 'spi')}
-      placeholder="Hasil Pengawasan"
+      placeholder="Hasil Pengawasan (nilai poin)"
       className="border p-2"
       required
     />
   </div>
+
+  {/* Submit Button */}
   <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded">
     Tambah SPI
   </button>
 </form>
+
 
 <h2 className="text-xl font-bold mb-4">Tabel Anggaran dan Realisasi</h2>
       {/* Search Box */}
@@ -596,7 +708,7 @@ const aksiKonvergensiChartData = useMemo(() => {
           onChange={(e) => setGlobalFilter(e.target.value)}
           placeholder="Cari berdasarkan Provinsi/Kabupaten/Kota"
           className="border p-2 w-full"
-        />
+        />    
       </div>
 
       {/* Tabel Anggaran dan Realisasi */}
@@ -772,6 +884,9 @@ const aksiKonvergensiChartData = useMemo(() => {
         </tbody>
       </table>
 
+      {/* Ketersediaan Chart */}
+      <Bar data={ketersediaanChart} options={{ responsive: true }} className="mb-8" />
+
       {/* Pagination Controls for Ketersediaan Table */}
       <div className="flex justify-between items-center">
         <button onClick={() => ketersediaanTable.previousPage()} disabled={!ketersediaanTable.getCanPreviousPage()}>
@@ -785,7 +900,7 @@ const aksiKonvergensiChartData = useMemo(() => {
         </button>
       </div>
 
-      {/* Tabel SPI */}
+{/* Tabel SPI */}
 <h2 className="text-xl font-bold mb-4">Tabel SPI</h2>
 
 {/* Search Box SPI */}
@@ -817,26 +932,30 @@ const aksiKonvergensiChartData = useMemo(() => {
     ))}
   </thead>
   <tbody>
-    {spiTable.getRowModel().rows.length > 0 ? (
-      spiTable.getRowModel().rows.map((row) => (
-        <tr key={row.id} className="odd:bg-white even:bg-gray-100">
-          {row.getVisibleCells().map((cell) => (
-            <td key={cell.id} className="border border-gray-400 px-4 py-2">
-              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-            </td>
-          ))}
-        </tr>
-      ))
-    ) : (
-      <tr>
-        <td colSpan={spiTable.getHeaderGroups()[0].headers.length} className="text-center py-4">
-          Tidak ada data SPI yang ditemukan
-        </td>
+  {spiTable.getRowModel().rows.length > 0 ? (
+    spiTable.getRowModel().rows.map((row) => (
+      <tr key={row.id} className="odd:bg-white even:bg-gray-100">
+        {row.getVisibleCells().map((cell) => (
+          <td key={cell.id} className="border border-gray-400 px-4 py-2">
+            {cell.column.id === 'provinsi' ? row.original.budget?.provinsi : null}
+            {cell.column.id === 'kabupaten' ? row.original.budget?.kabupaten : null}
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        ))}
       </tr>
-    )}
-  </tbody>
+    ))
+  ) : (
+    <tr>
+      <td colSpan={spiTable.getHeaderGroups()[0].headers.length} className="text-center py-4">
+        Tidak ada data SPI yang ditemukan
+      </td>
+    </tr>
+  )}
+</tbody>
 </table>
 
+{/* SPI Chart */}
+<Bar data={spiChart} options={{ responsive: true }} className="mb-8" />
 
       {/* Pagination Controls for SPI Table */}
       <div className="flex justify-between items-center">

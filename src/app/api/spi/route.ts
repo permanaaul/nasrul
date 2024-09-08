@@ -4,7 +4,11 @@ import prisma from '@/lib/prisma';
 // GET: Mendapatkan semua data SPI
 export async function GET() {
   try {
-    const spiData = await prisma.sPI.findMany();
+    const spiData = await prisma.sPI.findMany({
+        include: {
+            budget: true,
+        },
+    });
     return NextResponse.json(spiData);
   } catch (error) {
     return NextResponse.json({ message: 'Gagal mendapatkan data SPI', error }, { status: 500 });
@@ -14,11 +18,12 @@ export async function GET() {
 // POST: Menambahkan data SPI baru
 export async function POST(request: Request) {
   try {
-    const { unsurSpi, hasilPengawasan } = await request.json();  // Ensure we capture `unsurSpi`
+    const { unsurSpi, hasilPengawasan, budgetId } = await request.json();  // Tangkap budgetId dari body
     
     const newSPI = await prisma.sPI.create({
       data: {
-        unsur: unsurSpi,  // Store as `unsur` in the database
+        budgetId: parseInt(budgetId),  // Gunakan budgetId dari body
+        unsur: unsurSpi,  // Simpan sebagai `unsur` di database
         hasilPengawasan,
       },
     });
@@ -37,7 +42,7 @@ export async function PUT(request: Request) {
     const updatedSPI = await prisma.sPI.update({
       where: { id: Number(id) },
       data: {
-        unsur: unsurSpi,  // Ensure `unsurSpi` is correctly updated
+        unsur: unsurSpi,  // Pastikan unsurSpi di-update dengan benar
         hasilPengawasan,
       },
     });
